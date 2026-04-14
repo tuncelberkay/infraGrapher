@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  durugoru-engine:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    image: durugoru/infra-grapher:production
+    container_name: durugoru-engine
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      # Next.js Runtime Binding
+      - NODE_ENV=production
+      - PORT=3002
+      
+      # Internal LLM Binding (Must be reachable within the isolated network or on the Host)
+      # e.g., mapping to a local Ollama instance on the Host machine:
+      - LLM_API_URL=${LLM_API_URL:-http://host.docker.internal:11434/api/chat}
+      - LLM_MODEL_NAME=${LLM_MODEL_NAME:-llama3}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+    networks:
+      - airgap-internal
+    # Optional but recommended in secure environments: drop privileges
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  # Defined as an internal network. The container will have NO external internet access.
+  # This enforces strict airgap compliance.
+  airgap-internal:
+    internal: true
