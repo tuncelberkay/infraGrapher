@@ -5,27 +5,38 @@ export const firewallLogs = [
 ];
 
 export const webServers = [
-  { id: "web-01", hostname: "srv-webapp-01", vendor: "Tomcat", ip_address: "10.50.20.15", os_id: "os-01", health: "healthy" },
   { id: "web-02", hostname: "srv-iis-prod", vendor: "IIS", ip_address: "10.50.30.50", os_id: "os-02", health: "degraded", issue: "high_memory" }
 ];
 
 export const databases = [
-  { id: "db-01", hostname: "db-postgres-01", vendor: "PostgreSQL", ip_address: "10.50.20.16", os_id: "os-03", storage_pvc: "pvc-finance-db", health: "healthy" },
   { id: "db-02", hostname: "db-mssql-cluster", vendor: "MsSQL", ip_address: "10.50.30.51", os_id: "os-04", db_storage: "ds-dell-isilon-01", health: "degraded", issue: "lock_wait" },
   { id: "db-03", hostname: "db-oracle-exa-10", vendor: "Oracle", ip_address: "10.50.40.10", os_id: "os-05", db_storage: "ds-ibm-block-01", health: "healthy" }
 ];
 
 export const operatingSystems = [
-  { id: "os-01", hostname: "linux-worker-1", vendor: "RHEL 9", host_id: "pod-frontend-01", type: "container", health: "healthy" },
-  { id: "os-03", hostname: "linux-worker-2", vendor: "RHEL 9", host_id: "pod-database-01", type: "container", health: "healthy" },
   { id: "os-02", hostname: "win-srv-prod-02", vendor: "Windows Server 2022", host_id: "vm-app-02", type: "vm", health: "healthy" },
   { id: "os-04", hostname: "win-srv-sql-04", vendor: "Windows Server 2019", host_id: "vm-db-04", type: "vm", health: "healthy" },
   { id: "os-05", hostname: "rhel-oracle-05", vendor: "RHEL 8", host_id: "vm-oracle-05", type: "vm", health: "healthy" }
 ];
 
-export const openshiftMesh = [
-  { pod_name: "pod-frontend-01", namespace: "finance-prod", service: "frontend", node: "worker-node-1", vendor: "OpenShift", health: "healthy" },
-  { pod_name: "pod-database-01", namespace: "finance-prod", service: "database", node: "worker-node-2", vendor: "OpenShift", health: "healthy" }
+export const openshiftGateways = [
+  { id: "gw-03", hostname: "app.finance.com", ip_address: "10.50.20.15", service_id: "svc-frontend", vendor: "OpenShift", health: "healthy" },
+  { id: "gw-04", hostname: "db.finance.com", ip_address: "10.50.20.16", service_id: "svc-database", vendor: "OpenShift", health: "healthy" }
+];
+
+export const openshiftServices = [
+  { id: "svc-frontend", name: "frontend-svc", pod_name: "pod-frontend-01", vendor: "OpenShift", health: "healthy" },
+  { id: "svc-database", name: "database-svc", pod_name: "pod-database-01", vendor: "OpenShift", health: "healthy" }
+];
+
+export const openshiftPods = [
+  { id: "pod-frontend-01", pod_name: "pod-webapp-tomcat", namespace: "finance-prod", service: "frontend-svc", node_id: "worker-node-1", vendor: "Tomcat", health: "healthy" },
+  { id: "pod-database-01", pod_name: "pod-postgres-db", namespace: "finance-prod", service: "database-svc", node_id: "worker-node-2", vendor: "PostgreSQL", storage_pvc: "pvc-finance-db", health: "healthy" }
+];
+
+export const openshiftWorkerNodes = [
+  { id: "worker-node-1", hostname: "ocp-worker-1", role: "worker", vendor: "OpenShift", health: "healthy" },
+  { id: "worker-node-2", hostname: "ocp-worker-2", role: "worker", vendor: "OpenShift", health: "healthy" }
 ];
 
 export const openshiftDataFoundation = [

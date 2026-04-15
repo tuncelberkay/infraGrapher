@@ -2,6 +2,10 @@
 
 import React, { useEffect, useRef, useMemo } from "react";
 import cytoscape, { ElementDefinition } from "cytoscape";
+import dagre from "cytoscape-dagre";
+import { useTheme } from "next-themes";
+
+cytoscape.use(dagre);
 import { GraphNode, GraphEdge } from "../services/correlationEngine";
 
 interface ImpactGraphProps {
@@ -12,6 +16,8 @@ interface ImpactGraphProps {
 export default function ImpactGraph({ nodes, edges }: ImpactGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
 
   const elements = useMemo(() => {
     const cyNodes: ElementDefinition[] = nodes.map(n => {
@@ -20,7 +26,7 @@ export default function ImpactGraph({ nodes, edges }: ImpactGraphProps) {
       if (n.health === "unknown") nodeClass = "unknown";
 
       return {
-        data: { id: n.id, label: n.label, type: n.type, vendor: n.vendor },
+        data: { id: n.id, label: n.label, type: n.type, vendor: n.vendor, parent: n.parent },
         classes: `${nodeClass} ${n.type.toLowerCase()}`
       };
     });
@@ -45,18 +51,16 @@ export default function ImpactGraph({ nodes, edges }: ImpactGraphProps) {
         container: containerRef.current,
         elements: elements,
         layout: {
-          name: "cose",
-          idealEdgeLength: 150,
-          nodeOverlap: 20,
-          refresh: 20,
-          fit: true,
+          name: "dagre",
+          rankDir: "LR",      // Left to Right
+          nodeSep: 40,        // Vertical spacing between nodes in the same column
+          edgeSep: 20,
+          rankSep: 250,       // Horizontal spacing between columns to let beziers curve gracefully
           padding: 50,
-          randomize: false,
-          componentSpacing: 100,
-          nodeRepulsion: function() { return 400000; },
-          edgeElasticity: function() { return 100; },
-          nestingFactor: 5
-        },
+          fit: true,
+          animate: true,
+          animationDuration: 500
+        } as any,
         style: [
           {
             selector: "node",
@@ -66,7 +70,7 @@ export default function ImpactGraph({ nodes, edges }: ImpactGraphProps) {
               "width": 30,
               "height": 30,
               "label": "data(label)",
-              "color": "#fff",
+              "color": isDark ? "#fff" : "#0f172a",
               "font-size": "10px",
               "text-valign": "bottom",
               "text-margin-y": 8
@@ -74,15 +78,44 @@ export default function ImpactGraph({ nodes, edges }: ImpactGraphProps) {
           },
           {
             selector: "node.healthy",
-            style: { "color": "#00e5ff" }
+            style: { "color": isDark ? "#D6FF00" : "#059669" }
           },
           {
             selector: "node.degraded",
-            style: { "color": "#ff3366" }
+            style: { "color": isDark ? "#FF0055" : "#E11D48" }
           },
           {
             selector: "node.unknown",
-            style: { "color": "#ffaa00" }
+            style: { "color": "#64748B" }
+          },
+          {
+            selector: ":parent",
+            style: {
+              "shape": "roundrectangle",
+              "background-opacity": isDark ? 0.1 : 0.8,
+              "background-color": isDark ? "#1C1F26" : "#f1f5f9",
+              "border-color": isDark ? "#475569" : "#cbd5e1",
+              "border-width": 2,
+              "border-style": "dashed",
+              "label": "data(label)",
+              "color": isDark ? "#F8FAFC" : "#334155",
+              "font-size": "12px",
+              "font-weight": "bold",
+              "text-valign": "top",
+              "text-halign": "center",
+              "padding": "24px" as any,
+              "text-margin-y": 8 as any,
+            }
+          },
+          {
+            selector: "node[id = 'openshift-cluster']",
+            style: {
+              "background-image": `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="30"><text x="100" y="25" text-anchor="middle" fill="${isDark ? '#94a3b8' : '#64748b'}" font-size="12px" font-family="sans-serif" font-weight="bold">[ oc-prod-us-east-1 ]</text></svg>`)}`,
+              "background-position-y": "100%" as any,
+              "background-position-x": "50%" as any,
+              "background-fit": "none" as any,
+              "background-clip": "none" as any
+            }
           },
           {
             selector: "node[vendor = 'OpenShift']",
@@ -183,16 +216,16 @@ export default function ImpactGraph({ nodes, edges }: ImpactGraphProps) {
           {
             selector: "edge",
             style: {
-              "width": 2,
-              "line-color": "#444",
-              "target-arrow-color": "#444",
+              "width": 1.5,
+              "line-color": isDark ? "#475569" : "#94a3b8",
+              "target-arrow-color": isDark ? "#475569" : "#94a3b8",
               "target-arrow-shape": "triangle",
               "curve-style": "bezier",
               "label": "data(label)",
-              "font-size": "8px",
-              "color": "#888",
+              "font-size": "9px",
+              "color": isDark ? "#94A3B8" : "#64748b",
               "text-background-opacity": 1,
-              "text-background-color": "#0a0a0a"
+              "text-background-color": isDark ? "#090A0C" : "#FFFFFF"
             }
           }
         ]
@@ -205,10 +238,10 @@ export default function ImpactGraph({ nodes, edges }: ImpactGraphProps) {
         cyRef.current = null;
       }
     };
-  }, [elements]);
+  }, [elements, isDark]);
 
   return (
-    <div className="w-full h-screen absolute inset-0 z-0 bg-[#0a0a0a]">
+    <div className="w-full h-screen absolute inset-0 z-0 bg-background">
       <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
     </div>
   );

@@ -43,9 +43,9 @@ def get_start_command(root):
     
     scripts = data.get("scripts", {})
     if "dev" in scripts:
-        return ["npm", "run", "dev"]
+        return "npm run dev"
     elif "start" in scripts:
-        return ["npm", "start"]
+        return "npm start"
     return None
 
 def start_server(port=3000):
