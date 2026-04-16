@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useMemo } from "react";
+import React, { useEffect, useRef, useMemo, useState } from "react";
 import cytoscape, { ElementDefinition } from "cytoscape";
 // @ts-ignore
 import dagre from "cytoscape-dagre";
@@ -20,6 +20,8 @@ export default function ImpactGraph({ nodes, edges, rootNodeId }: ImpactGraphPro
   const cyRef = useRef<cytoscape.Core | null>(null);
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
+  const [viewport, setViewport] = useState({ pan: { x: 0, y: 0 }, zoom: 1 });
+  const [domNodes, setDomNodes] = useState<any[]>([]);
 
   const elements = useMemo(() => {
     const cyNodes: ElementDefinition[] = nodes.map(n => {
@@ -78,36 +80,23 @@ export default function ImpactGraph({ nodes, edges, rootNodeId }: ImpactGraphPro
             selector: "node",
             style: {
               "background-opacity": 0,
-              "background-image": "data(icon_url)",
-              "background-fit": "contain",
-              "background-clip": "none",
-              "border-width": 2,
-              "border-style": "solid",
-              "border-color": "transparent", // Placeholder border for health
-              "width": 48,
-              "height": 48,
-              "z-index": 20,
-              "label": "data(label)",
-              "color": isDark ? "#fff" : "#0f172a",
-              "font-size": "10px",
-              "text-valign": "bottom",
-              "text-margin-y": 8,
-              "text-background-opacity": 1,
-              "text-background-padding": "3px",
-              "text-background-color": isDark ? "#090A0C" : "#FFFFFF"
+              "border-width": 0,
+              "width": 24, // Reduces internal collision bounds so SVG overlay controls limits completely
+              "height": 24,
+              "z-index": 20
             }
           },
           {
             selector: "node.healthy",
-            style: { "border-color": isDark ? "#D6FF00" : "#059669", "color": isDark ? "#D6FF00" : "#059669" }
+            style: {  }
           },
           {
             selector: "node.degraded",
-            style: { "border-color": isDark ? "#FF0055" : "#E11D48", "color": isDark ? "#FF0055" : "#E11D48" }
+            style: {  }
           },
           {
             selector: "node.unknown",
-            style: { "border-color": "#64748B", "color": "#64748B" }
+            style: {  }
           },
           {
             selector: ":parent",
@@ -134,100 +123,8 @@ export default function ImpactGraph({ nodes, edges, rootNodeId }: ImpactGraphPro
           },
 
           {
-            selector: "node[vendor = 'OpenShift']",
-            style: { "background-image": "/icons/redhatopenshift.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'VMware']",
-            style: { "background-image": "/icons/vmware.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'Huawei']",
-            style: { "background-image": "/icons/huawei.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'IBM']",
-            style: { "background-image": "/icons/ibm.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'Dell']",
-            style: { "background-image": "/icons/dell.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'ODF']",
-            style: { "background-image": "/icons/ceph.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'Tomcat']",
-            style: { "background-image": "/icons/apachetomcat.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'IIS']",
-            style: { "background-image": "/icons/microsoft.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'Oracle']",
-            style: { "background-image": "/icons/oracle.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'PostgreSQL']",
-            style: { "background-image": "/icons/postgresql.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'MsSQL']",
-            style: { "background-image": "/icons/microsoftsqlserver.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'MySQL']",
-            style: { "background-image": "/icons/mysql.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'MongoDB']",
-            style: { "background-image": "/icons/mongodb.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'RHEL 9']",
-            style: { "background-image": "/icons/redhat.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'RHEL 8']",
-            style: { "background-image": "/icons/redhat.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'Windows Server 2022']",
-            style: { "background-image": "/icons/windows.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'Windows Server 2019']",
-            style: { "background-image": "/icons/windows.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'Arista']",
-            style: { "background-image": "/icons/arista.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'Cisco']",
-            style: { "background-image": "/icons/cisco.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'Fortinet']",
-            style: { "background-image": "/icons/fortinet.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'PaloAltoNetworks']",
-            style: { "background-image": "/icons/paloaltonetworks.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'A10Networks']",
-            style: { "background-image": "/icons/serverless.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'Broadcom']",
-            style: { "background-image": "/icons/broadcom.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
-          },
-          {
-            selector: "node[vendor = 'Citrix']",
-            style: { "background-image": "/icons/citrix.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
+            selector: "node[vendor]",
+            style: { "background-image": "none" }
           },
           {
             selector: "edge",
@@ -281,6 +178,27 @@ export default function ImpactGraph({ nodes, edges, rootNodeId }: ImpactGraphPro
           }
         }
       });
+
+      // DOM Overlay Synchronization
+      const updateDom = () => {
+        if (!cyRef.current) return;
+        const zoom = cyRef.current.zoom();
+        const pan = cyRef.current.pan();
+        setViewport({ zoom, pan });
+        
+        // Differentiate Node Types explicitly natively utilizing CSS selectors properly!
+        // Grab EXCLUSIVELY leaf nodes (VMs, Gateways) mapping inverse vectors shielding background arrays natively.
+        const reactNodes = cyRef.current.nodes(':childless').map(n => ({
+          id: n.id(),
+          pos: n.position(),
+          data: n.data(),
+          classes: n.classes().join(" ")
+        }));
+        setDomNodes(reactNodes);
+      };
+
+      cyRef.current.on('zoom pan render position', updateDom);
+      setTimeout(updateDom, 50); // Initial capture
     }
 
     return () => {
@@ -292,8 +210,50 @@ export default function ImpactGraph({ nodes, edges, rootNodeId }: ImpactGraphPro
   }, [elements, isDark]);
 
   return (
-    <div className="w-full h-screen absolute inset-0 z-0 bg-background">
-      <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+    <div className="w-full h-screen absolute inset-0 z-0 bg-background overflow-hidden relative">
+      <div ref={containerRef} style={{ width: "100%", height: "100%", position: "absolute", zIndex: 1 }} />
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 10 }}>
+        {domNodes.map(n => {
+          const screenX = n.pos.x * viewport.zoom + viewport.pan.x;
+          const screenY = n.pos.y * viewport.zoom + viewport.pan.y;
+          const inverseScale = 1 / viewport.zoom;
+          const showLabel = viewport.zoom >= 0.6;
+          
+          let color = "transparent";
+          if (n.classes.includes("healthy")) color = isDark ? "#D6FF00" : "#059669";
+          if (n.classes.includes("degraded")) color = isDark ? "#FF0055" : "#E11D48";
+          if (n.classes.includes("unknown")) color = "#64748B";
+
+          return (
+            <div key={n.id} style={{
+              position: "absolute",
+              left: screenX,
+              top: screenY,
+              transform: `translate(-50%, -50%) scale(${inverseScale})`,
+              display: "flex", flexDirection: "column", alignItems: "center",
+              pointerEvents: "auto",
+              cursor: "pointer",
+              transformOrigin: 'center center'
+            }}>
+              <div style={{
+                width: '48px', height: '48px', display: 'flex', justifyContent: 'center', alignItems: 'center',
+                border: `2px solid ${color}`, borderRadius: '4px', background: isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)'
+              }}>
+                <img src={n.data.icon_url || '/assets/icons/default-node.svg'} style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
+              </div>
+              <div style={{
+                position: 'absolute', top: '55px', left: '50%', transform: 'translateX(-50%)',
+                background: isDark ? 'rgba(9, 10, 12, 0.85)' : 'rgba(255,255,255,0.85)', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap', fontSize: '12px',
+                color: isDark ? '#fff' : '#0f172a',
+                opacity: showLabel ? 1 : 0, transition: 'opacity 0.2s',
+                pointerEvents: 'none'
+              }}>
+                {n.data.label}
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   );
 }
