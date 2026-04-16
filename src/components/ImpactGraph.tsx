@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useMemo } from "react";
 import cytoscape, { ElementDefinition } from "cytoscape";
+// @ts-ignore
 import dagre from "cytoscape-dagre";
 import { useTheme } from "next-themes";
 
@@ -11,9 +12,10 @@ import { GraphNode, GraphEdge } from "../services/correlationEngine";
 interface ImpactGraphProps {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  rootNodeId?: string;
 }
 
-export default function ImpactGraph({ nodes, edges }: ImpactGraphProps) {
+export default function ImpactGraph({ nodes, edges, rootNodeId }: ImpactGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
   const { resolvedTheme } = useTheme();
@@ -26,13 +28,14 @@ export default function ImpactGraph({ nodes, edges }: ImpactGraphProps) {
       if (n.health === "unknown") nodeClass = "unknown";
 
       return {
-        data: { id: n.id, label: n.label, type: n.type, vendor: n.vendor, parent: n.parent },
-        classes: `${nodeClass} ${n.type.toLowerCase()}`
+        data: { id: n.id, label: n.label, type: n.entity_type, vendor: n.vendor, parent: n.parent_id || undefined, icon_url: n.icon_url },
+        classes: `${nodeClass} ${n.entity_type.toLowerCase()}`
       };
     });
 
     const cyEdges: ElementDefinition[] = edges.map(e => ({
-      data: { id: e.id, source: e.source, target: e.target, label: e.connectionType.replace(/_/g, " ").toUpperCase() }
+      data: { id: e.id, source: e.source_id, target: e.target_id, label: e.edge_type.replace(/_/g, " ").toUpperCase() },
+      classes: e.edge_type.toLowerCase().replace(/_/g, "-")
     }));
 
     return [...cyNodes, ...cyEdges];
@@ -52,49 +55,70 @@ export default function ImpactGraph({ nodes, edges }: ImpactGraphProps) {
         elements: elements,
         layout: {
           name: "dagre",
-          rankDir: "LR",      // Left to Right
-          nodeSep: 40,        // Vertical spacing between nodes in the same column
-          edgeSep: 20,
-          rankSep: 250,       // Horizontal spacing between columns to let beziers curve gracefully
-          padding: 50,
+          rankDir: "LR",
+          nodeSep: 100, 
+          edgeSep: 50,
+          rankSep: 200, 
+          padding: 80,
           fit: true,
           animate: true,
-          animationDuration: 500
+          animationDuration: 800
         } as any,
         style: [
+          {
+            selector: ".target-glow",
+            style: {
+              "underlay-color": isDark ? "#D6FF00" : "#0ea5e9",
+              "underlay-padding": 12 as any,
+              "underlay-opacity": 0.6 as any,
+              "underlay-shape": "ellipse"
+            }
+          },
           {
             selector: "node",
             style: {
               "background-opacity": 0,
-              "border-width": 0,
-              "width": 30,
-              "height": 30,
+              "background-image": "data(icon_url)",
+              "background-fit": "contain",
+              "background-clip": "none",
+              "border-width": 2,
+              "border-style": "solid",
+              "border-color": "transparent", // Placeholder border for health
+              "width": 48,
+              "height": 48,
+              "z-index": 20,
               "label": "data(label)",
               "color": isDark ? "#fff" : "#0f172a",
               "font-size": "10px",
               "text-valign": "bottom",
-              "text-margin-y": 8
+              "text-margin-y": 8,
+              "text-background-opacity": 1,
+              "text-background-padding": "3px",
+              "text-background-color": isDark ? "#090A0C" : "#FFFFFF"
             }
           },
           {
             selector: "node.healthy",
-            style: { "color": isDark ? "#D6FF00" : "#059669" }
+            style: { "border-color": isDark ? "#D6FF00" : "#059669", "color": isDark ? "#D6FF00" : "#059669" }
           },
           {
             selector: "node.degraded",
-            style: { "color": isDark ? "#FF0055" : "#E11D48" }
+            style: { "border-color": isDark ? "#FF0055" : "#E11D48", "color": isDark ? "#FF0055" : "#E11D48" }
           },
           {
             selector: "node.unknown",
-            style: { "color": "#64748B" }
+            style: { "border-color": "#64748B", "color": "#64748B" }
           },
           {
             selector: ":parent",
             style: {
               "shape": "roundrectangle",
-              "background-opacity": isDark ? 0.1 : 0.8,
-              "background-color": isDark ? "#1C1F26" : "#f1f5f9",
-              "border-color": isDark ? "#475569" : "#cbd5e1",
+              "background-image": "none",
+              "background-color": isDark ? "#cccccc" : "#888888",
+              "background-opacity": 0.05,
+              "z-index": -1,
+              "events": "no",
+              "border-color": isDark ? "#888888" : "#888888",
               "border-width": 2,
               "border-style": "dashed",
               "label": "data(label)",
@@ -105,18 +129,10 @@ export default function ImpactGraph({ nodes, edges }: ImpactGraphProps) {
               "text-halign": "center",
               "padding": "24px" as any,
               "text-margin-y": 8 as any,
+              "text-background-opacity": 0
             }
           },
-          {
-            selector: "node[id = 'openshift-cluster']",
-            style: {
-              "background-image": `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="30"><text x="100" y="25" text-anchor="middle" fill="${isDark ? '#94a3b8' : '#64748b'}" font-size="12px" font-family="sans-serif" font-weight="bold">[ oc-prod-us-east-1 ]</text></svg>`)}`,
-              "background-position-y": "100%" as any,
-              "background-position-x": "50%" as any,
-              "background-fit": "none" as any,
-              "background-clip": "none" as any
-            }
-          },
+
           {
             selector: "node[vendor = 'OpenShift']",
             style: { "background-image": "/icons/redhatopenshift.svg", "background-fit": "cover", "border-width": 0, "background-image-opacity": 1 }
@@ -216,19 +232,54 @@ export default function ImpactGraph({ nodes, edges }: ImpactGraphProps) {
           {
             selector: "edge",
             style: {
-              "width": 1.5,
+              "width": 2,
+              "z-index": 10,
               "line-color": isDark ? "#475569" : "#94a3b8",
               "target-arrow-color": isDark ? "#475569" : "#94a3b8",
               "target-arrow-shape": "triangle",
-              "curve-style": "bezier",
+              "curve-style": "taxi",
+              "taxi-turn": 15 as any,
+              "taxi-turn-min-distance": 15,
               "label": "data(label)",
               "font-size": "9px",
               "color": isDark ? "#94A3B8" : "#64748b",
               "text-background-opacity": 1,
+              "text-background-padding": "2px",
               "text-background-color": isDark ? "#090A0C" : "#FFFFFF"
+            }
+          },
+          {
+            selector: "edge.hosted-on",
+            style: {
+              "width": 3,
+              "line-style": "dashed",
+              "line-color": isDark ? "#D6FF00" : "#d97706",
+              "target-arrow-color": isDark ? "#D6FF00" : "#d97706"
+            }
+          },
+          {
+            selector: "edge.dependency",
+            style: {
+              "width": 3,
+              "line-style": "dashed",
+              "line-color": isDark ? "#fbbf24" : "#f59e0b",
+              "target-arrow-color": isDark ? "#fbbf24" : "#f59e0b"
             }
           }
         ]
+      });
+
+      cyRef.current.ready(() => {
+        if (rootNodeId) {
+          const target = cyRef.current!.$(`#${rootNodeId}`);
+          if (target.length > 0) {
+            target.addClass('target-glow');
+            setTimeout(() => {
+              // Fit entire viewport gracefully
+              if(cyRef.current) cyRef.current.animate({ fit: { eles: cyRef.current.elements(), padding: 50 }, duration: 800 });
+            }, 600);
+          }
+        }
       });
     }
 

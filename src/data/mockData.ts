@@ -35,7 +35,7 @@ export const openshiftPods = [
 ];
 
 export const openshiftWorkerNodes = [
-  { id: "worker-node-1", hostname: "ocp-worker-1", role: "worker", vendor: "OpenShift", health: "healthy" },
+  { id: "worker-node-1", hostname: "ocp-worker-111", role: "worker", vendor: "OpenShift", health: "healthy" },
   { id: "worker-node-2", hostname: "ocp-worker-2", role: "worker", vendor: "OpenShift", health: "healthy" }
 ];
 
@@ -54,7 +54,7 @@ export const vmwareAria = [
 export const xormonStorage = [
   { datastore: "ds-huawei-block-01", type: "Block", storage_array: "OceanStor", vendor: "Huawei", state: "online" },
   { datastore: "ds-ibm-block-01", type: "Block", storage_array: "FlashSystem", vendor: "IBM", state: "online" },
-  { datastore: "ds-huawei-object-01", type: "Object", storage_array: "OceanStor-Object", vendor: "Huawei", state: "online" },
+  { datastore: "ds-huawei-object-01", type: "Object", storage_array: "OceanStor-Object", vendor: "Ananzaa", state: "online" },
   { datastore: "ds-dell-isilon-01", type: "NAS", storage_array: "Isilon-Cluster", vendor: "Dell", state: "degraded", issue: "nfs_timeout" }
 ];
 

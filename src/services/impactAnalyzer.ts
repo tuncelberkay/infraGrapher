@@ -40,30 +40,27 @@ export async function generateImpactReport(graph: InfrastructureGraph, enableLLM
     let foundNew = true;
     while (foundNew) {
       foundNew = false;
-      g.edges.forEach(edge => {
-        // If the target of this edge is already marked as affected, 
-        // the source of this edge ALSO becomes affected.
-        // (e.g., source: LoadBalancer, target: WebServer. WebServer fails -> LB fails).
-        if (affectedNodeIds.has(edge.target) && !affectedNodeIds.has(edge.source)) {
-          affectedNodeIds.add(edge.source);
+      g.edges.forEach((edge: any) => {
+        if (affectedNodeIds.has(edge.target_id) && !affectedNodeIds.has(edge.source_id)) {
+          affectedNodeIds.add(edge.source_id);
           foundNew = true;
         }
       });
     }
 
-    const affectedNodes = g.nodes.filter(n => affectedNodeIds.has(n.id) && n.id !== g.rootNodeId);
+    const affectedNodes = g.nodes.filter((n: any) => affectedNodeIds.has(n.id) && n.id !== g.rootNodeId);
 
-    const networks = affectedNodes.filter(n => ['Switch', 'Firewall', 'SSLVis', 'APIGateway', 'LoadBalancer'].includes(n.type));
-    const servers = affectedNodes.filter(n => ['WebServer', 'Database'].includes(n.type));
-    const infra = affectedNodes.filter(n => ['Compute', 'Storage', 'StorageODF', 'Container', 'OS'].includes(n.type));
+    const networks = affectedNodes.filter((n: any) => ['NETWORK_INTERFACE', 'FIREWALL_RULE', 'GATEWAY', 'VSERVER'].includes(n.entity_type));
+    const servers = affectedNodes.filter((n: any) => ['CONTAINER', 'DATASOURCE'].includes(n.entity_type));
+    const infra = affectedNodes.filter((n: any) => ['CLUSTER', 'VM', 'STORAGE_VOLUME', 'STORAGE_CONTROLLER', 'BARE_METAL'].includes(n.entity_type));
 
     report += "### 🖥️ Son Kullanıcı Hizmet Kesintisi (Uygulama Katmanı)\n";
     if (servers.length === 0) report += "- Kesintiye uğrayan temel uygulama sunucusu yok.\n";
-    servers.forEach(n => report += `- **${n.label}** (${n.type}): Tam Hizmet Kesintisi. Aktif hizmetler erişilemez olacak.\n`);
+    servers.forEach((n: any) => report += `- **${n.label}** (${n.entity_type}): Tam Hizmet Kesintisi. Aktif hizmetler erişilemez olacak.\n`);
     
     report += "\n### ⚙️ Kesintiye Uğrayan Altyapı Bileşenleri (VM / Container / OS)\n";
     if (infra.length === 0) report += "- Kesintiye uğrayan altyapı veya donanım bileşeni yok.\n";
-    infra.forEach(n => report += `- **${n.label}** (${n.type}): Hedefe bağımlı olduğu için (yukarı yönlü) donanımsal/mantıksal kesinti yaşayacak.\n`);
+    infra.forEach((n: any) => report += `- **${n.label}** (${n.entity_type}): Hedefe bağımlı olduğu için (yukarı yönlü) donanımsal/mantıksal kesinti yaşayacak.\n`);
 
     report += "\n---\n**Değişiklik Danışma Eylemi Gereklidir:** Hedef düğümün bakım penceresi sırasında yaşanacak uygulama kesintileri için gerekli tüm ekiplerle iletişim kurulduğundan emin olun.";
 

@@ -1,0 +1,238 @@
+{
+  "entities": [
+    {
+      "id": "cec-ibm-z16",
+      "label": "IBM z16 CEC",
+      "entity_type": "CLUSTER",
+      "vendor_spec": "IBM_MAINFRAME_CEC",
+      "vendor": "IBM",
+      "children": [
+        {
+          "id": "lpar-prod-01",
+          "label": "LPAR PROD-1",
+          "entity_type": "VIRTUAL_INSTANCE",
+          "vendor_spec": "IBM_MAINFRAME_LPAR",
+          "vendor": "IBM",
+          "children": [
+            {
+              "id": "ds-db2-01",
+              "label": "DB2 DataSource",
+              "entity_type": "Database",
+              "vendor_spec": "IBM_DB2_DS",
+              "vendor": "IBM"
+            }
+          ]
+        },
+        {
+          "id": "lpar-dev-01",
+          "label": "LPAR DEV-1",
+          "entity_type": "VIRTUAL_INSTANCE",
+          "vendor_spec": "IBM_MAINFRAME_LPAR",
+          "vendor": "IBM"
+        }
+      ]
+    },
+    {
+      "id": "ns-cluster-01",
+      "label": "Netscaler VPX HA",
+      "entity_type": "CLUSTER",
+      "vendor_spec": "NETSCALER_VPX",
+      "vendor": "Citrix",
+      "children": [
+        {
+          "id": "vsrv-web-01",
+          "label": "vServer Web Prod",
+          "entity_type": "LoadBalancer",
+          "vendor_spec": "NETSCALER_VSERVER",
+          "vendor": "Citrix",
+          "children": [
+            {
+              "id": "rt-nginx",
+              "label": "Ingress Route",
+              "entity_type": "Service",
+              "vendor_spec": "NETSCALER_ROUTE",
+              "vendor": "Citrix"
+            }
+          ]
+        },
+        {
+          "id": "vsrv-db-01",
+          "label": "vServer DB Prod",
+          "entity_type": "LoadBalancer",
+          "vendor_spec": "NETSCALER_VSERVER",
+          "vendor": "Citrix"
+        }
+      ]
+    },
+    {
+      "id": "storage-agg-01",
+      "label": "NetApp Aggregate",
+      "entity_type": "CLUSTER",
+      "vendor_spec": "NETAPP_AGGREGATE",
+      "vendor": "Dell",
+      "children": [
+        {
+          "id": "netapp-ctrl-a",
+          "label": "NetApp Controller A",
+          "entity_type": "HOST",
+          "vendor_spec": "NETAPP_CONTROLLER",
+          "vendor": "Dell",
+          "children": [
+            {
+              "id": "vol-web-data",
+              "label": "NetApp Vol Web",
+              "entity_type": "Storage",
+              "vendor_spec": "NETAPP_VOLUME",
+              "vendor": "Dell"
+            },
+            {
+              "id": "vol-db-data",
+              "label": "NetApp Vol DB",
+              "entity_type": "Storage",
+              "vendor_spec": "NETAPP_VOLUME",
+              "vendor": "Dell"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cisco-spine-01",
+      "label": "Cisco Nexus Spine",
+      "entity_type": "CLUSTER",
+      "vendor_spec": "CISCO_CHASSIS",
+      "vendor": "Cisco",
+      "children": [
+        {
+          "id": "linecard-01",
+          "label": "Line Card 1",
+          "entity_type": "HOST",
+          "vendor_spec": "CISCO_LINECARD",
+          "vendor": "Cisco",
+          "children": [
+            {
+              "id": "port-eth1-1",
+              "label": "Eth1/1",
+              "entity_type": "Network",
+              "vendor_spec": "CISCO_INTERFACE",
+              "vendor": "Cisco",
+              "children": [
+                {
+                  "id": "fw-allow-443",
+                  "label": "FW Rule: Allow 443",
+                  "entity_type": "Firewall",
+                  "vendor_spec": "CISCO_ACL",
+                  "vendor": "Cisco"
+                }
+              ]
+            },
+            {
+              "id": "port-eth1-2",
+              "label": "Eth1/2",
+              "entity_type": "Network",
+              "vendor_spec": "CISCO_INTERFACE",
+              "vendor": "Cisco"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vmware-compute-01",
+      "label": "VMware Cluster A",
+      "entity_type": "CLUSTER",
+      "vendor_spec": "VMWARE_CLUSTER",
+      "vendor": "VMware",
+      "children": [
+        {
+          "id": "ocp-worker-1",
+          "label": "OCP Worker Node",
+          "entity_type": "WorkerNode",
+          "vendor_spec": "OPENSHIFT_WORKER",
+          "vendor": "OpenShift",
+          "children": [
+            {
+              "id": "pod-frontend",
+              "label": "Frontend Pod",
+              "entity_type": "Container",
+              "vendor_spec": "OPENSHIFT_POD",
+              "vendor": "Tomcat",
+              "children": [
+                {
+                  "id": "ocp-gw-ingress",
+                  "label": "OpenShift Ingress GW",
+                  "entity_type": "Gateway",
+                  "vendor_spec": "OPENSHIFT_GATEWAY",
+                  "vendor": "OpenShift"
+                }
+              ]
+            },
+            {
+              "id": "pod-backend",
+              "label": "Backend Pod",
+              "entity_type": "Container",
+              "vendor_spec": "OPENSHIFT_POD",
+              "vendor": "OpenShift"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-9a8e9066",
+      "source": "port-eth1-1",
+      "target": "fw-allow-443",
+      "connectionType": "routes_traffic_to"
+    },
+    {
+      "id": "e-236ef3a4",
+      "source": "fw-allow-443",
+      "target": "vsrv-web-01",
+      "connectionType": "routes_traffic_to"
+    },
+    {
+      "id": "e-f85655d4",
+      "source": "vsrv-web-01",
+      "target": "rt-nginx",
+      "connectionType": "routes_traffic_to"
+    },
+    {
+      "id": "e-244235dc",
+      "source": "rt-nginx",
+      "target": "ocp-gw-ingress",
+      "connectionType": "routes_traffic_to"
+    },
+    {
+      "id": "e-bd1b0e88",
+      "source": "ocp-gw-ingress",
+      "target": "pod-frontend",
+      "connectionType": "routes_traffic_to"
+    },
+    {
+      "id": "e-10f06169",
+      "source": "pod-frontend",
+      "target": "pod-backend",
+      "connectionType": "routes_traffic_to"
+    },
+    {
+      "id": "e-9170a510",
+      "source": "pod-backend",
+      "target": "lpar-prod-01",
+      "connectionType": "routes_traffic_to"
+    },
+    {
+      "id": "e-924afad4",
+      "source": "lpar-prod-01",
+      "target": "ds-db2-01",
+      "connectionType": "routes_traffic_to"
+    },
+    {
+      "id": "e-9c7c7e93",
+      "source": "ds-db2-01",
+      "target": "vol-db-data",
+      "connectionType": "mounted_to"
+    }
+  ]
+}

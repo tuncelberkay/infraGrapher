@@ -9,6 +9,7 @@ import { GraphNode, GraphEdge } from "../services/correlationEngine";
 export default function Home() {
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [edges, setEdges] = useState<GraphEdge[]>([]);
+  const [rootNodeId, setRootNodeId] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [currentIp, setCurrentIp] = useState("10.50.20.15");
 
@@ -27,6 +28,7 @@ export default function Home() {
       if (json.success) {
         setNodes(json.data.graph.nodes);
         setEdges(json.data.graph.edges);
+        setRootNodeId(json.data.graph.rootNodeId);
       } else {
         console.error("Analysis Error:", json.error);
         alert("Tarama başarısız oldu: " + json.error);
@@ -50,7 +52,7 @@ export default function Home() {
       <SearchPanel isLoading={isLoading} onAnalyze={handleAnalyze} defaultIp={currentIp} />
       
       <div className="absolute inset-0 w-full h-full">
-        <ImpactGraph nodes={nodes} edges={edges} />
+        <ImpactGraph nodes={nodes} edges={edges} rootNodeId={rootNodeId} />
       </div>
 
       <FloatingDock onGenerateReport={handleCreateReport} />

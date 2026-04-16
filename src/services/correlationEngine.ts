@@ -1,29 +1,14 @@
-// Busting Turbopack Cache 123
-import { firewallLogs, webServers, databases, operatingSystems, openshiftPods, openshiftServices, openshiftGateways, openshiftWorkerNodes, openshiftDataFoundation, vmwareAria, xormonStorage, loadBalancers, apiGateways, sslVisibility, firewalls, networkSwitches } from "../data/mockData";
+import {
+  GraphNode, GraphEdge, EntityType, EdgeType, InfrastructureGraph
+} from "./schemas";
 
-export interface GraphNode {
-  id: string;
-  label: string;
-  type: "Network" | "Compute" | "Storage" | "Container" | "Gateway" | "Service" | "WorkerNode" | "OS" | "Database" | "WebServer" | "StorageODF" | "LoadBalancer" | "APIGateway" | "SSLVis" | "Firewall" | "Switch" | "Cluster";
-  vendor?: string;
-  health: "healthy" | "degraded" | "online" | "unknown";
-  metrics?: Record<string, unknown>;
-  parent?: string;
-}
-
-export interface GraphEdge {
-  id: string;
-  source: string;
-  target: string;
-  connectionType: "routes_traffic_to" | "runs_on" | "resides_on" | "mounted_to" | "backed_by";
-  metrics?: { port?: number };
-}
-
-export interface InfrastructureGraph {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-  rootNodeId?: string;
-}
+export type { GraphNode, GraphEdge, InfrastructureGraph };
+export { EntityType, EdgeType };
+import {
+  firewallLogs, webServers, databases, operatingSystems, openshiftGateways,
+  openshiftServices, openshiftPods, openshiftWorkerNodes, openshiftDataFoundation,
+  vmwareAria, xormonStorage, loadBalancers, apiGateways, sslVisibility, firewalls, networkSwitches
+} from "../data/mockData";
 
 export function generateImpactGraph(targetIp: string): InfrastructureGraph {
   const nodes = new Map<string, GraphNode>();
@@ -31,6 +16,20 @@ export function generateImpactGraph(targetIp: string): InfrastructureGraph {
 
   const addNode = (node: GraphNode) => {
     if (!nodes.has(node.id)) {
+      if (node.vendor) {
+        let slug = node.vendor.toLowerCase().replace(/[^a-z0-9]/g, '');
+        // Remap specific vendor slugs aligning with simpleicons structure natively
+        const mappings: Record<string, string> = {
+          "paloaltonetworks": "paloaltonetworks", "openshift": "redhatopenshift",
+          "mssql": "microsoftsqlserver", "tomcat": "apachetomcat",
+          "ibm": "ibm", "dell": "dell", "huawei": "huawei", "cisco": "cisco",
+          "fortinet": "fortinet", "citrix": "citrix", "vmware": "vmware"
+        };
+        slug = mappings[slug] || slug;
+        node.icon_url = `/assets/icons/vendors/${slug}.svg`;
+      } else {
+        node.icon_url = `/assets/icons/default-node.svg`;
+      }
       nodes.set(node.id, node);
     }
   };
@@ -39,229 +38,331 @@ export function generateImpactGraph(targetIp: string): InfrastructureGraph {
     if (!edges.some(e => e.id === edge.id)) edges.push(edge);
   }
 
-  // Recursive upstream network tracing (L4-L7)
-  const checkUpstream = (childId: string, childIp: string) => {
-    const lbs = loadBalancers.filter(l => l.targets.includes(childIp));
-    lbs.forEach(lb => {
-      addNode({ id: lb.id, label: lb.hostname, type: "LoadBalancer", vendor: lb.vendor, health: lb.health as "healthy" | "degraded" });
-      addEdge({ id: `routes-${lb.id}-${childId}`, source: lb.id, target: childId, connectionType: "routes_traffic_to" });
-      checkUpstream(lb.id, lb.ip_address);
+  // --- 0. Synthesize Overarching Logical Clusters ---
+  addNode({ id: "cluster-vmware", entity_type: EntityType.CLUSTER, label: "VMware vSphere Cluster", parent_id: null });
+  addNode({ id: "cluster-openshift", entity_type: EntityType.CLUSTER, label: "OpenShift Platform", parent_id: null });
+  addNode({ id: "zone-network", entity_type: EntityType.CLUSTER, label: "Network & Security Zone", parent_id: null });
+  addNode({ id: "zone-storage", entity_type: EntityType.CLUSTER, label: "Storage Fabric", parent_id: null });
+
+  // --- 1. Storage to Compute Mapping ---
+  // Storage Nodes
+  for (const st of xormonStorage) {
+    addNode({
+      id: st.datastore, 
+      label: st.datastore,
+      entity_type: EntityType.STORAGE_VOLUME,
+      vendor: st.vendor,
+      parent_id: "zone-storage"
+    });
+  }
+
+  // VMware Nodes (Clusters & VMs)
+  for (const vm of vmwareAria) {
+    const esxiId = `host-${vm.esxi_host}`;
+    addNode({
+      id: esxiId,
+      label: vm.esxi_host,
+      entity_type: EntityType.CLUSTER,
+      vendor: "VMware",
+      parent_id: "cluster-vmware"
     });
 
-    const gws = apiGateways.filter(g => g.targets.includes(childIp));
-    gws.forEach(gw => {
-      addNode({ id: gw.id, label: gw.hostname, type: "APIGateway", vendor: gw.vendor, health: gw.health as "healthy" | "degraded" });
-      addEdge({ id: `routes-${gw.id}-${childId}`, source: gw.id, target: childId, connectionType: "routes_traffic_to" });
-      checkUpstream(gw.id, gw.ip_address);
+    const vmId = `vm-${vm.vm_name}`;
+    addNode({
+      id: vmId,
+      label: vm.vm_name,
+      entity_type: EntityType.VM,
+      vendor: "VMware",
+      parent_id: esxiId
     });
 
-    const ssls = sslVisibility.filter(s => s.targets.includes(childIp));
-    ssls.forEach(ssl => {
-      addNode({ id: ssl.id, label: ssl.hostname, type: "SSLVis", vendor: ssl.vendor, health: ssl.health as "healthy" | "degraded" });
-      addEdge({ id: `routes-${ssl.id}-${childId}`, source: ssl.id, target: childId, connectionType: "routes_traffic_to" });
-      checkUpstream(ssl.id, ssl.ip_address);
+    if (vm.datastore) {
+      addEdge({
+        id: `e-vm-st-${vmId}`,
+        source_id: vmId,
+        target_id: vm.datastore,
+        edge_type: EdgeType.DEPENDENCY
+      });
+    }
+  }
+
+  // --- 2. OpenShift Hierarchy ---
+  for (const wn of openshiftWorkerNodes) {
+    const parentVmId = `vm-${wn.id}`;
+    const hasVmParent = nodes.has(parentVmId);
+
+    addNode({
+      id: wn.id,
+      label: wn.hostname,
+      entity_type: EntityType.VM,
+      vendor: wn.vendor,
+      parent_id: "cluster-openshift"
     });
 
-    const fws = firewalls.filter(f => f.targets.includes(childIp));
-    fws.forEach(fw => {
-      addNode({ id: fw.id, label: fw.hostname, type: "Firewall", vendor: fw.vendor, health: fw.health as "healthy" | "degraded" });
-      addEdge({ id: `routes-${fw.id}-${childId}`, source: fw.id, target: childId, connectionType: "routes_traffic_to" });
-      checkUpstream(fw.id, fw.ip_address);
+    if (hasVmParent) {
+      addEdge({
+        id: `e-ho-${wn.id}`,
+        source_id: wn.id,
+        target_id: parentVmId,
+        edge_type: EdgeType.HOSTED_ON
+      });
+    }
+  }
+
+  for (const pod of openshiftPods) {
+    addNode({
+      id: pod.id,
+      label: pod.pod_name,
+      entity_type: EntityType.CONTAINER,
+      vendor: pod.vendor,
+      parent_id: "cluster-openshift"
     });
 
-    const sws = networkSwitches.filter(s => s.targets.includes(childIp));
-    sws.forEach(sw => {
-      addNode({ id: sw.id, label: sw.hostname, type: "Switch", vendor: sw.vendor, health: sw.health as "healthy" | "degraded" });
-      addEdge({ id: `routes-${sw.id}-${childId}`, source: sw.id, target: childId, connectionType: "routes_traffic_to" });
-      checkUpstream(sw.id, sw.ip_address);
-    });
-  };
-
-  // Find associated IP flow in Firewall logs to determine lateral blast radius
-  const relatedFlows = firewallLogs.filter(log => log.src_ip === targetIp || log.dest_ip === targetIp || log.src_ip === "10.50.20.15" /* Hack for mock trace flow */);
-  
-  const involvedIPs = new Set([targetIp]);
-  relatedFlows.forEach(flow => {
-    if (flow.src_ip !== "0.0.0.0") involvedIPs.add(flow.src_ip);
-    involvedIPs.add(flow.dest_ip);
-  });
-
-  involvedIPs.forEach(ip => {
-    // 1. App/Web Layer (Legacy VMs)
-    const webServer = webServers.find(ws => ws.ip_address === ip);
-    let osId: string | null = null;
-    let pvcName: string | null = null;
-    let dbStorage: string | null = null;
-
-    if (webServer) {
-      osId = webServer.os_id;
-      checkUpstream(webServer.id, webServer.ip_address); // Trigger L4-L7 sweep
+    if (pod.node_id) {
+      addEdge({
+        id: `e-dep-${pod.id}`,
+        source_id: pod.id,
+        target_id: pod.node_id,
+        edge_type: EdgeType.DEPENDENCY
+      });
     }
 
-    // 2. Database Layer (Legacy VMs)
-    const db = databases.find(d => d.ip_address === ip);
-    if (db) {
-      osId = db.os_id;
-      if ("storage_pvc" in db) pvcName = (db as any).storage_pvc;
-      if (db.db_storage) dbStorage = db.db_storage;
-      checkUpstream(db.id, db.ip_address); // Trigger L4-L7 sweep
-    }
-
-    // 3. OpenShift Native Container Tracing (Top-Down via Gateway)
-    const gateway = openshiftGateways.find(gw => gw.ip_address === ip);
-    if (gateway) {
-      addNode({ id: "openshift-cluster", label: "OpenShift Cluster", type: "Cluster", health: "healthy" });
-      addNode({ id: gateway.id, label: `Gateway: ${gateway.hostname}`, type: "Gateway", vendor: gateway.vendor, health: gateway.health as "healthy" | "degraded" | "online" | "unknown", parent: "openshift-cluster" });
-      
-      checkUpstream(gateway.id, gateway.ip_address);
-
-      const service = openshiftServices.find(s => s.id === gateway.service_id);
-      if (service) {
-         addNode({ id: service.id, label: `Svc: ${service.name}`, type: "Service", vendor: service.vendor, health: service.health as "healthy" | "degraded" | "online" | "unknown", parent: "openshift-cluster" });
-         addEdge({ id: `routes-${gateway.id}-${service.id}`, source: gateway.id, target: service.id, connectionType: "routes_traffic_to" });
-
-         const pod = openshiftPods.find(p => p.id === service.pod_name);
-         if (pod) {
-            addNode({ id: pod.id, label: `Pod: ${pod.pod_name}\n(${pod.vendor})`, type: "Container", vendor: pod.vendor, health: pod.health as "healthy" | "degraded" | "online" | "unknown", parent: "openshift-cluster" });
-            addEdge({ id: `routes-${service.id}-${pod.id}`, source: service.id, target: pod.id, connectionType: "routes_traffic_to" });
-            
-            if (pod.storage_pvc) {
-              const odf = openshiftDataFoundation.find(o => o.pvc_name === pod.storage_pvc);
-              if (odf) {
-                addNode({ id: odf.vendor, label: `ODF: ${odf.component}`, type: "StorageODF", vendor: odf.vendor, health: odf.health as "healthy" | "degraded" | "online" | "unknown", parent: "openshift-cluster" });
-                addEdge({ id: `mounted-${pod.id}-${odf.vendor}`, source: pod.id, target: odf.vendor, connectionType: "mounted_to" });
-                
-                const physicalStorage = xormonStorage.find(s => s.datastore === odf.backing_store);
-                if (physicalStorage) {
-                   addNode({ id: physicalStorage.datastore, label: physicalStorage.datastore, type: "Storage", vendor: physicalStorage.vendor, health: physicalStorage.state as "healthy" | "degraded" | "online" | "unknown" });
-                   addEdge({ id: `backed-${odf.vendor}-${physicalStorage.datastore}`, source: odf.vendor, target: physicalStorage.datastore, connectionType: "backed_by" });
-                }
-              }
-            }
-
-            const workerNode = openshiftWorkerNodes.find(wn => wn.id === pod.node_id);
-            if (workerNode) {
-               addNode({ id: workerNode.id, label: `Node: ${workerNode.hostname}`, type: "WorkerNode", vendor: workerNode.vendor, health: workerNode.health as "healthy" | "degraded" | "online" | "unknown", parent: "openshift-cluster" });
-               addEdge({ id: `resides-${pod.id}-${workerNode.id}`, source: pod.id, target: workerNode.id, connectionType: "resides_on" });
-               
-               const vm = vmwareAria.find(v => v.vm_name === workerNode.id);
-               if (vm) {
-                 addNode({ id: vm.vm_name, label: vm.vm_name, type: "Compute", vendor: vm.vendor, health: vm.health as "healthy" | "degraded" | "online" | "unknown" });
-                 addEdge({ id: `resides-${workerNode.id}-${vm.vm_name}`, source: workerNode.id, target: vm.vm_name, connectionType: "resides_on" });
-                 
-                 const storage = xormonStorage.find(s => s.datastore === vm.datastore);
-                 if (storage) {
-                   addNode({ id: storage.datastore, label: storage.datastore, type: "Storage", vendor: storage.vendor, health: storage.state as "healthy" | "degraded" | "online" | "unknown" });
-                   addEdge({ id: `mounted-${vm.vm_name}-${storage.datastore}`, source: vm.vm_name, target: storage.datastore, connectionType: "mounted_to" });
-                 }
-               }
-            }
-         }
-      }
-    }
-
-    // Defer adding web/db node until we know its parent OS context
-    let clusterParent: string | undefined = undefined;
-    if (osId) {
-      const os = operatingSystems.find(o => o.id === osId);
-      if (os && os.type === "container") {
-        clusterParent = "openshift-cluster";
-        addNode({ id: "openshift-cluster", label: "OpenShift Cluster", type: "Cluster", health: "healthy" });
-      }
-    }
-
-    if (webServer) {
-      addNode({ id: webServer.id, label: webServer.hostname, type: "WebServer", vendor: webServer.vendor, health: webServer.health as "healthy" | "degraded" | "online" | "unknown", parent: clusterParent });
-    }
-    if (db) {
-      addNode({ id: db.id, label: db.hostname, type: "Database", vendor: db.vendor, health: db.health as "healthy" | "degraded" | "online" | "unknown", parent: clusterParent });
-    }
-
-    // Connect lateral traffic
-    relatedFlows.filter(f => f.src_ip === ip || f.dest_ip === ip).forEach(flow => {
-      const srcWs = webServers.find(ws => ws.ip_address === flow.src_ip)?.id;
-      const srcDb = databases.find(d => d.ip_address === flow.src_ip)?.id;
-      const destWs = webServers.find(ws => ws.ip_address === flow.dest_ip)?.id;
-      const destDb = databases.find(d => d.ip_address === flow.dest_ip)?.id;
-
-      const srcGw = openshiftGateways.find(g => g.ip_address === flow.src_ip)?.id;
-      const destGw = openshiftGateways.find(g => g.ip_address === flow.dest_ip)?.id;
-      
-      const sourceId = srcWs || srcDb || srcGw;
-      const destId = destWs || destDb || destGw;
-
-      if (sourceId && destId) {
-         addEdge({ id: `flow-${sourceId}-${destId}`, source: sourceId, target: destId, connectionType: "routes_traffic_to", metrics: { port: flow.port } });
-      }
-    });
-
-    // 4. OS / Container Pruning Layer (Legacy OS map)
-    if (osId) {
-      const os = operatingSystems.find(o => o.id === osId);
-      if (os) {
-        const parentId = webServer ? webServer.id : (db ? db.id : null);
-
-        if (os.type === "vm") {
-          // MAINTAIN OS LAYER for physical / VM infrastructure
-          addNode({ id: os.id, label: os.hostname, type: "OS", vendor: os.vendor, health: os.health as "healthy" | "degraded" | "online" | "unknown" });
-          if (parentId) {
-            addEdge({ id: `runs-${parentId}-${os.id}`, source: parentId, target: os.id, connectionType: "runs_on" });
-          }
-
-          const vm = vmwareAria.find(v => v.vm_name === os.host_id);
-          if (vm) {
-            addNode({ id: vm.vm_name, label: vm.vm_name, type: "Compute", vendor: vm.vendor, health: vm.health as "healthy" | "degraded" | "online" | "unknown" });
-            addEdge({ id: `resides-${os.id}-${vm.vm_name}`, source: os.id, target: vm.vm_name, connectionType: "resides_on" });
-            
-             // Trace VM to Datastore
-             const storage = xormonStorage.find(s => s.datastore === vm.datastore);
-             if (storage) {
-               addNode({ id: storage.datastore, label: storage.datastore, type: "Storage", vendor: storage.vendor, health: storage.state as "healthy" | "degraded" | "online" | "unknown" });
-               addEdge({ id: `mounted-${vm.vm_name}-${storage.datastore}`, source: vm.vm_name, target: storage.datastore, connectionType: "mounted_to" });
-             }
-          }
-        }
-      }
-    }
-
-
-    // 5. OpenShift Data Foundation / Specific Storage (PVC traces)
-    if (pvcName) {
-      const odf = openshiftDataFoundation.find(o => o.pvc_name === pvcName);
+    if (pod.storage_pvc) {
+      const odf = openshiftDataFoundation.find(o => o.pvc_name === pod.storage_pvc);
       if (odf) {
-        // Ensure Cluster Node exists securely
-        addNode({ id: "openshift-cluster", label: "OpenShift Cluster", type: "Cluster", health: "healthy" });
+        addEdge({
+          id: `e-pvc-${pod.id}`,
+          source_id: pod.id,
+          target_id: odf.backing_store,
+          edge_type: EdgeType.DEPENDENCY
+        });
+      }
+    }
+  }
 
-        addNode({ id: odf.vendor, label: `ODF: ${odf.component}`, type: "StorageODF", vendor: odf.vendor, health: odf.health as "healthy" | "degraded" | "online" | "unknown", parent: "openshift-cluster" });
-        
-        // PVC is connected to the DB that requested it
-        if (db) addEdge({ id: `mounted-${db.id}-${odf.vendor}`, source: db.id, target: odf.vendor, connectionType: "mounted_to" });
+  for (const gw of openshiftGateways) {
+    addNode({
+      id: gw.id,
+      label: gw.hostname,
+      entity_type: EntityType.GATEWAY,
+      vendor: gw.vendor,
+      parent_id: "cluster-openshift"
+    });
 
-        // ODF is backed by physical storage
-        const physicalStorage = xormonStorage.find(s => s.datastore === odf.backing_store);
-        if (physicalStorage) {
-           addNode({ id: physicalStorage.datastore, label: physicalStorage.datastore, type: "Storage", vendor: physicalStorage.vendor, health: physicalStorage.state as "healthy" | "degraded" | "online" | "unknown" });
-           addEdge({ id: `backed-${odf.vendor}-${physicalStorage.datastore}`, source: odf.vendor, target: physicalStorage.datastore, connectionType: "backed_by" });
+    if (gw.service_id) {
+      addEdge({
+        id: `e-dep-${gw.id}`,
+        source_id: gw.id,
+        target_id: gw.service_id,
+        edge_type: EdgeType.DEPENDENCY
+      });
+    }
+  }
+
+  for (const svc of openshiftServices) {
+    addNode({
+      id: svc.id,
+      label: svc.name,
+      entity_type: EntityType.ROUTE,
+      vendor: svc.vendor,
+      parent_id: "cluster-openshift"
+    });
+
+    if (svc.pod_name) {
+      addEdge({
+        id: `e-dep-${svc.id}`,
+        source_id: svc.id,
+        target_id: svc.pod_name,
+        edge_type: EdgeType.DEPENDENCY
+      });
+    }
+  }
+
+  // --- 3. Compute and OS Mapping ---
+  for (const os of operatingSystems) {
+     const osId = os.id;
+     let parentId = os.host_id;
+     if (os.type === 'vm' && !nodes.has(parentId)) {
+         parentId = `vm-${os.host_id.replace("vm-", "")}`;
+     }
+     
+     addNode({
+       id: osId,
+       label: os.hostname,
+       entity_type: EntityType.VM,
+       vendor: os.vendor,
+       parent_id: nodes.has(parentId) ? parentId : null
+     });
+  }
+  
+  for (const db of databases) {
+    let parentId = db.os_id; 
+    addNode({
+      id: db.id,
+      label: db.hostname,
+      entity_type: EntityType.DATASOURCE,
+      vendor: db.vendor,
+      parent_id: parentId
+    });
+
+    if (db.db_storage) {
+      addEdge({
+        id: `e-db-st-${db.id}`,
+        source_id: db.id,
+        target_id: db.db_storage,
+        edge_type: EdgeType.DEPENDENCY
+      });
+    }
+  }
+
+  for (const ws of webServers) {
+    addNode({
+      id: ws.id,
+      label: ws.hostname,
+      entity_type: EntityType.CONTAINER,
+      vendor: ws.vendor,
+      parent_id: ws.os_id
+    });
+  }
+
+  // --- 4. Network & Gateway Edge Mapping ---
+  const networkTypes = [
+    { list: loadBalancers, type: EntityType.VSERVER },
+    { list: apiGateways, type: EntityType.GATEWAY },
+    { list: sslVisibility, type: EntityType.GATEWAY },
+    { list: firewalls, type: EntityType.FIREWALL_RULE },
+    { list: networkSwitches, type: EntityType.NETWORK_INTERFACE }
+  ];
+
+  for (const group of networkTypes) {
+    for (const item of group.list as any[]) {
+      addNode({
+        id: item.id,
+        label: item.hostname,
+        entity_type: group.type,
+        vendor: item.vendor,
+        parent_id: "zone-network"
+      });
+
+      if (item.targets) {
+        for (const tIP of item.targets) {
+           addEdge({
+             id: `e-rt-${item.id}-${tIP}`,
+             source_id: item.id,
+             target_id: tIP,
+             edge_type: EdgeType.ROUTE_PATH
+           });
+        }
+      }
+    }
+  }
+
+  // IP Resolution Map
+  const ipMap = new Map<string, string>();
+  const collectIps = (list: any[]) => {
+      for(const item of list) {
+          if (item.ip_address && item.id) ipMap.set(item.ip_address, item.id);
+      }
+  }
+  collectIps(loadBalancers);
+  collectIps(apiGateways);
+  collectIps(sslVisibility);
+  collectIps(firewalls);
+  collectIps(networkSwitches);
+  collectIps(webServers);
+  collectIps(databases);
+  collectIps(openshiftGateways);
+
+  for (const edge of edges) {
+     if (ipMap.has(edge.target_id)) {
+         edge.target_id = ipMap.get(edge.target_id)!;
+     }
+  }
+
+  // --- 5. Raw Firewall Log Ingestion (NETFLOW) ---
+  for (let i = 0; i < firewallLogs.length; i++) {
+    const log = firewallLogs[i];
+    if (log.action !== "allow") continue;
+
+    let srcId = ipMap.get(log.src_ip) || "Internet";
+    let destId = ipMap.get(log.dest_ip);
+
+    if (destId) {
+      if (!nodes.has("Internet")) {
+         addNode({
+           id: "Internet",
+           label: "Internet Boundary",
+           entity_type: EntityType.GATEWAY,
+           parent_id: null
+         });
+      }
+      addEdge({
+        id: `fw-edge-${i}`,
+        source_id: srcId,
+        target_id: destId,
+        edge_type: EdgeType.NETFLOW
+      });
+    }
+  }
+
+  // --- 6. Subgraph Extraction Engine (Search & Focus) ---
+  if (targetIp) {
+    const q = targetIp.toLowerCase().trim();
+    let targetNodeId: string | null = null;
+    
+    if (ipMap.has(q)) {
+      targetNodeId = ipMap.get(q)!;
+    } else {
+      for (const [id, node] of nodes.entries()) {
+        if (id.toLowerCase() === q || node.label.toLowerCase() === q) {
+          targetNodeId = id;
+          break;
         }
       }
     }
 
-    // Direct DB Storage trace (Legacy DBs)
-    if (dbStorage) {
-      const physicalStorage = xormonStorage.find(s => s.datastore === dbStorage);
-      if (physicalStorage && db) {
-        addNode({ id: physicalStorage.datastore, label: physicalStorage.datastore, type: "Storage", vendor: physicalStorage.vendor, health: physicalStorage.state as "healthy" | "degraded" | "online" | "unknown" });
-        addEdge({ id: `mounted-${db.id}-${physicalStorage.datastore}`, source: db.id, target: physicalStorage.datastore, connectionType: "mounted_to" });
-      }
+    if (targetNodeId) {
+      const subgraphNodes = new Set<string>();
+      subgraphNodes.add(targetNodeId);
+
+      // PASS 1: Horizontal (Network Neighbors - 1 Hop)
+      edges.forEach(edge => {
+        if (edge.source_id === targetNodeId || edge.target_id === targetNodeId) {
+          subgraphNodes.add(edge.source_id);
+          subgraphNodes.add(edge.target_id);
+        }
+      });
+
+      // PASS 2 & 3: Unified Vertical Recursion Loop
+      let countBefore;
+      do {
+        countBefore = subgraphNodes.size;
+
+        // PASS 3: Vertical DOWN (Logicals, Physical Dependencies, Hosting)
+        edges.forEach(edge => {
+          if ([EdgeType.DEPENDENCY, EdgeType.HOSTED_ON].includes(edge.edge_type)) {
+            if (subgraphNodes.has(edge.source_id)) {
+              subgraphNodes.add(edge.target_id);
+            }
+          }
+        });
+
+        // PASS 2: Vertical UP (Preserve ALL Parent Clusters mapping)
+        Array.from(subgraphNodes).forEach(id => {
+          const node = nodes.get(id);
+          if (node && node.parent_id) {
+            subgraphNodes.add(node.parent_id);
+          }
+        });
+
+      } while (subgraphNodes.size > countBefore);
+
+      const filteredNodes = Array.from(nodes.values()).filter(n => subgraphNodes.has(n.id));
+      const filteredEdges = edges.filter(e => subgraphNodes.has(e.source_id) && subgraphNodes.has(e.target_id));
+
+      return { nodes: filteredNodes, edges: filteredEdges, rootNodeId: targetNodeId };
     }
-  });
+  }
 
-  const rootNodeId = webServers.find(w => w.ip_address === targetIp)?.id || 
-                     databases.find(d => d.ip_address === targetIp)?.id || 
-                     openshiftGateways.find(g => g.ip_address === targetIp)?.id ||
-                     xormonStorage.find(s => s.datastore === targetIp)?.datastore || 
-                     loadBalancers.find(l => l.ip_address === targetIp)?.id ||
-                     firewalls.find(f => f.ip_address === targetIp)?.id || undefined;
-
-  return { nodes: Array.from(nodes.values()), edges, rootNodeId };
+  return { nodes: Array.from(nodes.values()), edges };
 }
